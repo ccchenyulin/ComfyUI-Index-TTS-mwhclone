@@ -201,6 +201,17 @@ python -m pip install -U "huggingface_hub[hf_xet]"
 
 ## 更新日志
 
+### 2025-12-18
+
+- **修复多个社区反馈问题**：
+  - 老节点 `Index TTS` 现已支持 IndexTTS-2 模型 (#121)
+  - 新增 `Index TTS 2 Pro (小说多角色)` 节点，支持 TTS 2.0 多角色小说朗读 (#111)
+  - 修复 tensor 尺寸不匹配随机报错问题 (#122)
+  - 支持 w2v-bert-2.0 本地离线加载，无需联网 (#72/#113)
+  - 适配 transformers 4.50+ 版本 API 变化 (#117)
+  - 更新 safetensors 版本要求 (#123)
+  - 新增 README 常见问题解答 (FAQ) 部分
+
 ### 2025-06-24
 
 - pro节点新增了对于字幕的json输出，感谢@qy8502提供的玩法思路
