@@ -69,6 +69,19 @@ class _IndexTTS2BaseMixin:
         audio = {"waveform": wave_t, "sample_rate": int(sr)}
         return audio, kwargs.get("seed", 0), (sub or "")
 
+    def _handle_cache_cleanup(self, cache_control):
+        """统一的缓存清理逻辑：默认不保持缓存即卸载"""
+        try:
+            # 只有当 cache_control 明确设置 keep_cached=True 时才保持，否则一律卸载
+            keep_cached = False
+            if isinstance(cache_control, dict):
+                keep_cached = bool(cache_control.get("keep_cached", False))
+            
+            if not keep_cached:
+                _GLOBAL_LOADER.unload_tts()  # 始终使用全局 Loader 卸载
+        except Exception as e:
+            print(f"[IndexTTS2] Warning: Failed to cleanup cache - {e}")
+
 
 class IndexTTS2BaseNode(_IndexTTS2BaseMixin):
     @classmethod
@@ -81,6 +94,7 @@ class IndexTTS2BaseNode(_IndexTTS2BaseMixin):
     CATEGORY = "audio"
 
     def __init__(self):
+        # 统一使用全局共享的 Loader/Engine
         self.loader = _GLOBAL_LOADER
         self.engine = _GLOBAL_ENGINE
 
@@ -99,13 +113,9 @@ class IndexTTS2BaseNode(_IndexTTS2BaseMixin):
             emo_text=None, emo_ref_audio=None, emo_vector=None, emo_weight=0.8,
             seed=seed, return_subtitles=True,
         )
-        # Handle cache control: unload tts if keep_cached is False
-        try:
-            keep = bool(cache_control.get("keep_cached")) if isinstance(cache_control, dict) else False
-            if not keep:
-                self.loader.unload_tts()
-        except Exception:
-            pass
+        
+        # 统一处理缓存清理
+        self._handle_cache_cleanup(cache_control)
         return out
 
 
@@ -126,8 +136,9 @@ class IndexTTS2EmotionAudioNode(_IndexTTS2BaseMixin):
     CATEGORY = "audio"
 
     def __init__(self):
-        self.loader = IndexTTS2Loader()
-        self.engine = IndexTTS2Engine(self.loader)
+        # 统一使用全局共享的 Loader/Engine（修复点：不再创建新实例）
+        self.loader = _GLOBAL_LOADER
+        self.engine = _GLOBAL_ENGINE
 
     def generate(self, text, reference_audio, mode, emo_ref_audio,
                  emotion_weight=0.8,
@@ -147,12 +158,9 @@ class IndexTTS2EmotionAudioNode(_IndexTTS2BaseMixin):
             emo_text=None, emo_ref_audio=emo_ref, emo_vector=None, emo_weight=float(emotion_weight),
             seed=seed, return_subtitles=True,
         )
-        try:
-            keep = bool(cache_control.get("keep_cached")) if isinstance(cache_control, dict) else False
-            if not keep:
-                self.loader.unload_tts()
-        except Exception:
-            pass
+        
+        # 统一处理缓存清理
+        self._handle_cache_cleanup(cache_control)
         return out
 
 
@@ -180,8 +188,9 @@ class IndexTTS2EmotionVectorNode(_IndexTTS2BaseMixin):
     CATEGORY = "audio"
 
     def __init__(self):
-        self.loader = IndexTTS2Loader()
-        self.engine = IndexTTS2Engine(self.loader)
+        # 统一使用全局共享的 Loader/Engine（修复点：不再创建新实例）
+        self.loader = _GLOBAL_LOADER
+        self.engine = _GLOBAL_ENGINE
 
     def generate(self, text, reference_audio, mode,
                  Happy=0.0, Angry=0.0, Sad=0.0, Fear=0.0, Hate=0.0, Love=0.0, Surprise=0.0, Neutral=0.0,
@@ -203,12 +212,9 @@ class IndexTTS2EmotionVectorNode(_IndexTTS2BaseMixin):
             emo_text=None, emo_ref_audio=None, emo_vector=emo_vec, emo_weight=0.8,
             seed=seed, return_subtitles=True,
         )
-        try:
-            keep = bool(cache_control.get("keep_cached")) if isinstance(cache_control, dict) else False
-            if not keep:
-                self.loader.unload_tts()
-        except Exception:
-            pass
+        
+        # 统一处理缓存清理
+        self._handle_cache_cleanup(cache_control)
         return out
 
 
@@ -227,8 +233,9 @@ class IndexTTS2EmotionTextNode(_IndexTTS2BaseMixin):
     CATEGORY = "audio"
 
     def __init__(self):
-        self.loader = IndexTTS2Loader()
-        self.engine = IndexTTS2Engine(self.loader)
+        # 统一使用全局共享的 Loader/Engine（修复点：不再创建新实例）
+        self.loader = _GLOBAL_LOADER
+        self.engine = _GLOBAL_ENGINE
 
     def generate(self, text, reference_audio, mode, emotion_description="",
                  
@@ -251,10 +258,34 @@ class IndexTTS2EmotionTextNode(_IndexTTS2BaseMixin):
             verbose=True,
             seed=seed, return_subtitles=True,
         )
-        try:
-            keep = bool(cache_control.get("keep_cached")) if isinstance(cache_control, dict) else False
-            if not keep:
-                self.loader.unload_tts()
-        except Exception:
-            pass
+        
+        # 统一处理缓存清理
+        self._handle_cache_cleanup(cache_control)
         return out
+
+
+class IndexTTS2CacheControlNode:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                # Whether to keep models cached after a node call
+                "keep_models_cached": ("BOOLEAN", {"default": False}),
+            },
+            "optional": {
+                # Reserved for future VRAM options (not wired yet)
+                # "vram_mode": (["Balanced", "Low", "Performance"], {"default": "Balanced"}),
+            },
+        }
+
+    RETURN_TYPES = ("DICT",)
+    RETURN_NAMES = ("cache_control",)
+    FUNCTION = "build"
+    CATEGORY = "audio"
+
+    def build(self, keep_models_cached: bool = False) -> dict[str, Any]:
+        ctrl = {
+            "keep_cached": bool(keep_models_cached),
+        }
+        # Return as DICT for downstream nodes
+        return (ctrl,)
